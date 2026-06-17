@@ -12,69 +12,37 @@ exports.handler = async (event) => {
     try {
         let { phone } = JSON.parse(event.body);
 
-        // ============================================================
-        // NUMARAYI FORMATLA (Twilio + ile istiyor)
-        // ============================================================
+        // Numarayı formatla (sadece rakam)
         phone = phone.replace(/\s/g, '').replace(/[^0-9]/g, '');
-
-        // Türkiye numaraları için (90 ile başlamıyorsa ekle)
         if (!phone.startsWith('90') && phone.length === 10) {
             phone = '90' + phone;
         }
-
-        // Twilio formatı: +90...
-        const formattedPhone = '+' + phone;
-
-        // ============================================================
-        // NETLİFY ENV DEĞİŞKENLERİ
-        // ============================================================
-        const accountSid = process.env.TWILIO_SID;
-        const authToken = process.env.TWILIO_TOKEN;
-        const fromNumber = process.env.TWILIO_FROM;
-
-        const missing = [];
-        if (!accountSid) missing.push('TWILIO_SID');
-        if (!authToken) missing.push('TWILIO_TOKEN');
-        if (!fromNumber) missing.push('TWILIO_FROM');
-
-        if (missing.length > 0) {
-            return {
-                statusCode: 500,
-                headers,
-                body: JSON.stringify({
-                    success: false,
-                    message: `Eksik değişkenler: ${missing.join(', ')}`
-                })
-            };
+        if (phone.startsWith('90')) {
+            phone = phone.replace(/^90/, '');
         }
 
         const code = Math.floor(1000 + Math.random() * 9000);
 
-        const response = await fetch(
-            `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
-            {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'Authorization': 'Basic ' + Buffer.from(`${accountSid}:${authToken}`).toString('base64')
-                },
-                body: new URLSearchParams({
-                    To: formattedPhone,
-                    From: fromNumber,
-                    Body: `Onay kodunuz: ${code}`
-                })
-            }
-        );
+        // TextBelt (Günde 1 SMS ücretsiz)
+        const response = await fetch('https://textbelt.com/text', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+                phone: phone,
+                message: `Onay kodunuz: ${code}`,
+                key: 'textbelt'
+            })
+        });
 
         const data = await response.json();
 
-        if (data.sid) {
+        if (data.success) {
             return {
                 statusCode: 200,
                 headers,
                 body: JSON.stringify({
                     success: true,
-                    message: '✅ SMS gönderildi! (Twilio)',
+                    message: '✅ SMS gönderildi! (TextBelt - 1/gün)',
                     code: code
                 })
             };
@@ -84,7 +52,7 @@ exports.handler = async (event) => {
                 headers,
                 body: JSON.stringify({
                     success: false,
-                    message: '❌ Twilio hatası: ' + (data.message || 'Bilinmeyen hata')
+                    message: '❌ TextBelt hatası: ' + (data.error || 'Bilinmeyen hata')
                 })
             };
         }
