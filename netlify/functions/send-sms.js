@@ -10,38 +10,46 @@ exports.handler = async (event) => {
     }
 
     try {
-        const { phone } = JSON.parse(event.body);
-        
-        // 1. TELEFON NUMARASI KONTROLÜ
-        if (!phone || phone.length < 10) {
-            return {
-                statusCode: 400,
-                headers,
-                body: JSON.stringify({ success: false, message: 'Geçersiz numara!' })
-            };
+        let { phone } = JSON.parse(event.body);
+
+        // ============================================================
+        // NUMARAYI FORMATLA (Twilio + ile istiyor)
+        // ============================================================
+        phone = phone.replace(/\s/g, '').replace(/[^0-9]/g, '');
+
+        // Türkiye numaraları için (90 ile başlamıyorsa ekle)
+        if (!phone.startsWith('90') && phone.length === 10) {
+            phone = '90' + phone;
         }
 
-        // 2. BİLGİLERİ NETLİFY ORTAM DEĞİŞKENLERİNDEN AL (GÜVENLİ!)
+        // Twilio formatı: +90...
+        const formattedPhone = '+' + phone;
+
+        // ============================================================
+        // NETLİFY ENV DEĞİŞKENLERİ
+        // ============================================================
         const accountSid = process.env.TWILIO_SID;
         const authToken = process.env.TWILIO_TOKEN;
         const fromNumber = process.env.TWILIO_FROM;
 
-        // 3. EĞER BİLGİLER AYARLANMAMIŞSA UYARI VER
-        if (!accountSid || !authToken || !fromNumber) {
-            console.error("Twilio bilgileri Netlify'da ayarlanmamış!");
+        const missing = [];
+        if (!accountSid) missing.push('TWILIO_SID');
+        if (!authToken) missing.push('TWILIO_TOKEN');
+        if (!fromNumber) missing.push('TWILIO_FROM');
+
+        if (missing.length > 0) {
             return {
                 statusCode: 500,
                 headers,
-                body: JSON.stringify({ 
-                    success: false, 
-                    message: 'Sunucu yapılandırma hatası. Lütfen yönetici ile iletişime geçin.' 
+                body: JSON.stringify({
+                    success: false,
+                    message: `Eksik değişkenler: ${missing.join(', ')}`
                 })
             };
         }
 
         const code = Math.floor(1000 + Math.random() * 9000);
 
-        // 4. TWILIO İSTEĞİNİ GÖNDER
         const response = await fetch(
             `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
             {
@@ -51,7 +59,7 @@ exports.handler = async (event) => {
                     'Authorization': 'Basic ' + Buffer.from(`${accountSid}:${authToken}`).toString('base64')
                 },
                 body: new URLSearchParams({
-                    To: phone,
+                    To: formattedPhone,
                     From: fromNumber,
                     Body: `Onay kodunuz: ${code}`
                 })
@@ -60,37 +68,34 @@ exports.handler = async (event) => {
 
         const data = await response.json();
 
-        // 5. SONUCU DÖNDÜR
         if (data.sid) {
             return {
                 statusCode: 200,
                 headers,
-                body: JSON.stringify({ 
-                    success: true, 
+                body: JSON.stringify({
+                    success: true,
                     message: '✅ SMS gönderildi! (Twilio)',
-                    code: code 
+                    code: code
                 })
             };
         } else {
             return {
                 statusCode: 200,
                 headers,
-                body: JSON.stringify({ 
-                    success: false, 
-                    message: '❌ Twilio hatası: ' + (data.message || 'Bilinmeyen hata') 
+                body: JSON.stringify({
+                    success: false,
+                    message: '❌ Twilio hatası: ' + (data.message || 'Bilinmeyen hata')
                 })
             };
         }
     } catch (error) {
-        console.error("Function hatası:", error);
         return {
             statusCode: 500,
             headers,
-            body: JSON.stringify({ 
-                success: false, 
-                message: 'Sunucu hatası: ' + error.message 
+            body: JSON.stringify({
+                success: false,
+                message: 'Sunucu hatası: ' + error.message
             })
         };
     }
 };
-
