@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>📱 SMS Onay</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body{background:#0a0a0f;color:#0f0;font-family:Arial;padding:20px}
+        .container{max-width:400px;margin:auto;background:#1a1a2e;padding:20px;border-radius:10px}
+        input,button{width:100%;padding:10px;margin:5px 0;background:#0a0a0f;color:#0f0;border:1px solid #0f0;border-radius:5px}
+        button{background:#00aa00;color:#fff;cursor:pointer}
+        .success{color:#0f0}.error{color:#f00}
+    </style>
+</head>
+<body>
+<div class="container">
+    <h3>📱 SMS Onay</h3>
+    <input type="text" id="phone" placeholder="905551234567">
+    <button onclick="sendSMS()">📨 Gönder</button>
+    <div id="result"></div>
+</div>
+<script>
+function sendSMS() {
+    const phone=document.getElementById('phone').value;
+    const r=document.getElementById('result');
+    if(!phone||phone.length<10){r.innerHTML='❌ Geçersiz!';r.className='error';return;}
+    r.innerHTML='⏳ Gönderiliyor...';
+    fetch('/.netlify/functions/send-sms',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({phone:phone})
+    })
+    .then(res=>res.json())
+    .then(data=>{
+        if(data.success){r.innerHTML='✅ '+data.message;r.className='success';}
+        else{r.innerHTML='❌ '+data.message;r.className='error';}
+    })
+    .catch(()=>{r.innerHTML='❌ Sunucu hatası!';r.className='error';});
+}
+</script>
+</body>
+</html>
